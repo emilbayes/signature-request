@@ -1,20 +1,27 @@
-# `signature-request`
+# `authenticated-request`
 
-> Sign HTTP requests using modern crypto
+> Authenticate HTTP requests using modern crypto
 
 ## Usage
 
-### Sign
+Authentication means several things in cryptography, but common for them all is
+to verify the integrity and validity of something. Authentication in regards to
+messages and requests is that only someone with access to the original secret
+can verify the message. It is like a signature, but requires a symmetric key,
+meaning both the party authenticating a message and the party verifying need to
+share the same key, which must be kept secret.
+
+### Authenticate
 
 ```js
-var signatureRequest = require('signature-request')
+var authenticatedRequest = require('authenticated-request')
 var sodium = require('sodium-native')
 
 // Create secure buffer key in-memory (you probably get this from a file somehow)
-var key = sodium.sodium_malloc(signatureRequest.KEYBYTES)
+var key = sodium.sodium_malloc(authenticatedRequest.KEYBYTES)
 sodium.randombytes_random(key)
 
-var sigReq = signatureRequest(['Host', 'Accept', 'Content-Length', 'Content-Type', 'Date', 'Origin', 'Referer', 'If-Match'])
+var authReq = authenticatedRequest(['Host', 'Accept', 'Content-Length', 'Content-Type', 'Date', 'Origin', 'Referer', 'If-Match'])
 
 
 var req = {
@@ -30,24 +37,24 @@ var req = {
   payload: Buffer.from('My CV')
 }
 
-
-var signature = sigReq.sign(req.method, req.url, req.headers, req.payload, key)
+// Calculate a Message Authentication Code
+var mac = authReq.authenticate(req.method, req.url, req.headers, req.payload, key)
 
 // This header will be ignored because it is not in the whitelist
-sigReq.headers['authorization'] = signature.toString('base64') // maybe you want to prefix this with module name and version
+sigReq.headers['authorization'] = mac.toString('base64') // maybe you want to prefix this with module name and version
 ```
 
 ### Verify
 
 ```js
-var signatureRequest = require('signature-request')
+var authenticatedRequest = require('authenticated-request')
 var sodium = require('sodium-native')
 
 // Create secure buffer key in-memory (you probably get this from a file somehow)
-var key = sodium.sodium_malloc(signatureRequest.KEYBYTES)
+var key = sodium.sodium_malloc(authenticatedRequest.KEYBYTES)
 sodium.randombytes_random(key)
 
-var sigReq = signatureRequest(['Host', 'Accept', 'Content-Length', 'Content-Type', 'Date', 'Origin', 'Referer', 'If-Match'])
+var authReq = authenticatedRequest(['Host', 'Accept', 'Content-Length', 'Content-Type', 'Date', 'Origin', 'Referer', 'If-Match'])
 
 
 var req = {
@@ -64,10 +71,10 @@ var req = {
   payload: Buffer.from('My CV')
 }
 
-var signature = Buffer.from(req.headers.authorization, 'base64')
+var mac = Buffer.from(req.headers.authorization, 'base64')
 
-if(!sigReq.verify(signature, req.method, req.url, req.headers, req.payload, key)) {
-  throw new Error('Signature did not verify')
+if(!authReq.verify(mac, req.method, req.url, req.headers, req.payload, key)) {
+  throw new Error('MAC did not verify')
 }
 ```
 
@@ -93,21 +100,21 @@ Do they represent the same resource or are they different?
 
 ### Constants
 
-* `signatureRequest.KEYBYTES` - Length in bytes of a valid key
-* `signatureRequest.BYTES` - Length in bytes of a valid signature
+* `authenticatedRequest.KEYBYTES` - Length in bytes of a valid key
+* `authenticatedRequest.BYTES` - Length in bytes of a valid MAC
 
-### `var policy = signatureRequest(whitelistedHeaders)`
+### `var policy = authenticatedRequest(headerWhitelist)`
 
 Create an instance with a whitelist of headers, which must be an array of
-strings, that will be included in the signature if passed to `sign` and
-`verify`. Note that the headers in the whitelist are optional in the sense that
-no methods will fail if the exact headers are not present, but headers not in
-the whitelist will be ignored. The headers are lower cased to give them a
+strings, that will be included in the authenticated if passed to `authenticate`
+and `verify`. Note that the headers in the whitelist are optional in the sense
+that no methods will fail if the exact headers are not present, but headers not
+in the whitelist will be ignored. The headers are lower cased to give them a
 canonical representation.
 
-### `var signature = policy.sign(method, url, headers, payload, key)`
+### `var mac = policy.authenticate(method, url, headers, payload, key)`
 
-Sign a request given the following arguments:
+Authenticate a request given the following arguments:
 
 * `method` must be a string, and should be a HTTP method
 * `url` must be a string. Consider whether you deem protocol and hostname part
@@ -117,16 +124,17 @@ Sign a request given the following arguments:
 * `payload` is optional, but must be a Buffer. The default value is the empty
   Buffer.
 * `key` must be a cryptographically pseudorandom key of length
-  `signatureRequest.KEYBYTES` passed as a Buffer. It is recommended to use
+  `authenticatedRequest.KEYBYTES` passed as a Buffer. It is recommended to use
   `sodium-native` Secure Buffers if possible.
 
-Returns a signature (prefix mac) as a Buffer of length `signatureRequest.BYTES`
+Returns a message authentication code (prefix mac) as a Buffer of length
+`authenticatedRequest.BYTES`
 
-### `var valid = policy.verify(signature, method, url, headers, payload, key)`
+### `var valid = policy.verify(mac, method, url, headers, payload, key)`
 
-Verify a signature of a request given the following arguments:
+Verify the MAC of a request given the following arguments:
 
-* `signature` must be a Buffer of length `signatureRequest.BYTES`
+* `mac` must be a Buffer of length `authenticatedRequest.BYTES`
 * `method` must be a string, and should be a HTTP method
 * `url` must be a string. Consider whether you deem protocol and hostname part
   of the url.
@@ -135,10 +143,10 @@ Verify a signature of a request given the following arguments:
 * `payload` is optional, but must be a Buffer. The default value is the empty
   Buffer.
 * `key` must be a cryptographically pseudorandom key of length
-  `signatureRequest.KEYBYTES` passed as a Buffer. It is recommended to use
+  `authenticatedRequest.KEYBYTES` passed as a Buffer. It is recommended to use
   `sodium-native` Secure Buffers if possible.
 
-Returns boolean on whether the signature was valid or not.
+Returns boolean on whether the MAC was valid or not.
 
 ## License
 

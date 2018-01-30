@@ -1,8 +1,8 @@
 var test = require('tape')
-var signedReq = require('.')
+var authReq = require('.')
 
 test('', function (assert) {
-  var sr = signedReq(['accept-encoding', 'content-length', 'content-type'])
+  var ar = authReq(['accept-encoding', 'content-length', 'content-type'])
 
   {
     'X-Forwarded-For': 'http://localhost.com',

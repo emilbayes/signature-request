@@ -1,7 +1,7 @@
 {
-  "name": "signature-request",
+  "name": "authenticate-request",
   "version": "0.0.0",
-  "description": "Sign HTTP requests using modern crypto",
+  "description": "Authenticate HTTP requests using modern crypto",
   "main": "index.js",
   "dependencies": {
     "nanoassert": "^1.1.0",
@@ -15,9 +15,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/emilbayes/signature-request.git"
+    "url": "git+https://github.com/emilbayes/authenticated-request.git"
   },
   "keywords": [
+    "authenticated",
+    "auth",
     "signed",
     "request",
     "req",
@@ -31,7 +33,7 @@
   "author": "Emil Bay <github@tixz.dk>",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/emilbayes/signature-request/issues"
+    "url": "https://github.com/emilbayes/authenticated-request/issues"
   },
-  "homepage": "https://github.com/emilbayes/signature-request#readme"
+  "homepage": "https://github.com/emilbayes/authenticated-request#readme"
 }
