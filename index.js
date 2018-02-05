@@ -1,11 +1,12 @@
 var sodium = require('sodium-native')
 var assert = require('nanoassert')
 
-AuthenticatedRequest.KEYBYTES = sodium.crypto_generichash_KEYBYTES
-AuthenticatedRequest.BYTES = sodium.crypto_generichash_BYTES
+AuthenticatedRequest.BYTES = 64 // Use blake2b-512
+AuthenticatedRequest.KEYBYTES = 64 // Key bytes is the same since we use the header mac as the key for the payload hash
 
 var NL_BUF = Buffer.from('\n')
 
+module.exports = AuthenticatedRequest
 function AuthenticatedRequest (headerWhitelist) {
   if (!(this instanceof AuthenticatedRequest)) return new AuthenticatedRequest(headerWhitelist)
   assert(Array.isArray(headerWhitelist), 'headerWhitelist must be an array')
@@ -14,25 +15,18 @@ function AuthenticatedRequest (headerWhitelist) {
   this._headerWhitelist = headerWhitelist.map(s => s.toLowerCase()).sort()
 }
 
-AuthenticatedRequest.prototype.authenticate = function (method, url, headers, payload, key) {
+AuthenticatedRequest.prototype.authenticate = function (key, {method, url, headers, payload}) {
+  assert(Buffer.isBuffer(key), 'key must be Buffer (recommended sodium-native Secure Buffer)')
+  assert(key.length >= AuthenticatedRequest.KEYBYTES, 'key must be AuthenticatedRequest.KEYBYTES long')
   if (payload == null) payload = new Buffer(0)
   assert(typeof method == 'string', 'method must be string')
   assert(typeof url == 'string', 'method must be string')
   assert(Buffer.isBuffer(payload), 'payload must be Buffer')
-  assert(Buffer.isBuffer(key), 'key must be Buffer (recommended sodium-native Secure Buffer)')
-  assert(key.length >= AuthenticatedRequest.KEYBYTES, 'key must be AuthenticatedRequest.KEYBYTES long')
 
-  // Utilise that Blake2 can function as a prefix MAC
-  var hash = sodium.crypto_generichash_instance(key, AuthenticatedRequest.BYTES)
+  var headerMac = this._hashHeaders(key, method, url, headers)
 
-  hash.update(Buffer.from(method.toUpperCase()))
-  hash.update(NL_BUF)
-  hash.update(Buffer.from(url))
-  hash.update(NL_BUF)
-  this._hashHeaders(hash, headers)
+  var hash = sodium.crypto_generichash_instance(headerMac, AuthenticatedRequest.BYTES)
 
-  // Include a separator before the payload
-  hash.update(NL_BUF)
   hash.update(payload)
 
   var mac = Buffer.allocUnsafe(AuthenticatedRequest.BYTES)
@@ -41,15 +35,24 @@ AuthenticatedRequest.prototype.authenticate = function (method, url, headers, pa
   return mac
 }
 
-AuthenticatedRequest.prototype.verify = function (mac, method, url, headers, payload, key) {
+AuthenticatedRequest.prototype.verify = function (mac, key, req) {
   assert(Buffer.isBuffer(mac), 'mac must be Buffer')
   assert(mac.length >= AuthenticatedRequest.BYTES, 'mac must be AuthenticatedRequest.BYTES long')
+  // other asserts are defered to authenticate
 
-  var computedMac = this.sign(method, headers, payload, key)
+  var computedMac = this.authenticate(key, req)
   return sodium.sodium_memcmp(mac, computedMac, AuthenticatedRequest.BYTES)
 }
 
-AuthenticatedRequest.prototype._hashHeaders = function(instance, headers) {
+AuthenticatedRequest.prototype._hashHeaders = function(key, method, url, headers) {
+  // Utilise that Blake2 can function as a prefix MAC
+  var hash = sodium.crypto_generichash_instance(key, AuthenticatedRequest.BYTES)
+
+  hash.update(Buffer.from(method.toUpperCase()))
+  hash.update(NL_BUF)
+  hash.update(Buffer.from(url))
+  hash.update(NL_BUF)
+
   var normalizedHeaders = Object.keys(headers).reduce(function (norm, key) {
     norm[key.toLowerCase()] = headers[key]
     return norm
@@ -64,4 +67,9 @@ AuthenticatedRequest.prototype._hashHeaders = function(instance, headers) {
     hash.update(Buffer.from(`${header}:${normalizedHeaders[header]}`))
     hash.update(NL_BUF)
   })
+
+  var mac = Buffer.allocUnsafe(AuthenticatedRequest.BYTES)
+  hash.final(mac)
+
+  return mac
 }

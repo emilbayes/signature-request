@@ -21,8 +21,9 @@ var sodium = require('sodium-native')
 var key = sodium.sodium_malloc(authenticatedRequest.KEYBYTES)
 sodium.randombytes_random(key)
 
-var authReq = authenticatedRequest(['Host', 'Accept', 'Content-Length', 'Content-Type', 'Date', 'Origin', 'Referer', 'If-Match'])
-
+var authReq = authenticatedRequest([
+  'Host', 'Date', 'Content-Length', 'Content-Type'
+])
 
 var req = {
   method: 'POST',
@@ -38,10 +39,12 @@ var req = {
 }
 
 // Calculate a Message Authentication Code
-var mac = authReq.authenticate(req.method, req.url, req.headers, req.payload, key)
+var mac = authReq.authenticate(key, req)
 
 // This header will be ignored because it is not in the whitelist
-sigReq.headers['authorization'] = mac.toString('base64') // maybe you want to prefix this with module name and version
+// Maybe you want to prefix this with module name and version, and remove that
+// information when verifying
+finalRequest.headers['authorization'] = mac.toString('base64')
 ```
 
 ### Verify
@@ -54,7 +57,9 @@ var sodium = require('sodium-native')
 var key = sodium.sodium_malloc(authenticatedRequest.KEYBYTES)
 sodium.randombytes_random(key)
 
-var authReq = authenticatedRequest(['Host', 'Accept', 'Content-Length', 'Content-Type', 'Date', 'Origin', 'Referer', 'If-Match'])
+var authReq = authenticatedRequest([
+  'Host', 'Date', 'Content-Length', 'Content-Type'
+])
 
 
 var req = {
@@ -73,7 +78,7 @@ var req = {
 
 var mac = Buffer.from(req.headers.authorization, 'base64')
 
-if(!authReq.verify(mac, req.method, req.url, req.headers, req.payload, key)) {
+if(!authReq.verify(mac, key, req)) {
   throw new Error('MAC did not verify')
 }
 ```
@@ -106,45 +111,47 @@ Do they represent the same resource or are they different?
 ### `var policy = authenticatedRequest(headerWhitelist)`
 
 Create an instance with a whitelist of headers, which must be an array of
-strings, that will be included in the authenticated if passed to `authenticate`
-and `verify`. Note that the headers in the whitelist are optional in the sense
-that no methods will fail if the exact headers are not present, but headers not
-in the whitelist will be ignored. The headers are lower cased to give them a
-canonical representation.
+strings, that will be included in the Message Authentication Code (MAC) if
+passed to `authenticate` and `verify`. Note that the headers in the whitelist
+are optional in the sense that no methods will fail if the exact headers are not
+present, but headers not in the whitelist will be ignored. The headers are lower
+cased to give them a canonical representation.
 
-### `var mac = policy.authenticate(method, url, headers, payload, key)`
+### `var mac = policy.authenticate(key, {method, url, headers, [payload]})`
 
 Authenticate a request given the following arguments:
 
-* `method` must be a string, and should be a HTTP method
-* `url` must be a string. Consider whether you deem protocol and hostname part
-  of the url.
-* `headers` should be a object of `key: value` pairs. `key`s are lower cased and
-  matched against the whitelist. Headers with a `null` value are ignored
-* `payload` is optional, but must be a Buffer. The default value is the empty
-  Buffer.
 * `key` must be a cryptographically pseudorandom key of length
   `authenticatedRequest.KEYBYTES` passed as a Buffer. It is recommended to use
   `sodium-native` Secure Buffers if possible.
+* A request object containing:
+  + `method` must be a string, and should be a HTTP method
+  + `url` must be a string. Consider whether you deem protocol and hostname part
+    of the url.
+  + `headers` should be a object of `key: value` pairs. `key`s are lower cased
+    and matched against the whitelist. Headers with a `null` value are ignored
+  + `payload` is optional, but must be a Buffer. The default value is the empty
+    Buffer. Can be the HTTP body, a checksum/digest or something else
 
-Returns a message authentication code (prefix mac) as a Buffer of length
+Returns a message authentication code (prefix MAC) as a Buffer of length
 `authenticatedRequest.BYTES`
 
-### `var valid = policy.verify(mac, method, url, headers, payload, key)`
+### `var valid = policy.verify(mac, key, {method, url, headers, [payload]})`
 
 Verify the MAC of a request given the following arguments:
 
 * `mac` must be a Buffer of length `authenticatedRequest.BYTES`
-* `method` must be a string, and should be a HTTP method
-* `url` must be a string. Consider whether you deem protocol and hostname part
-  of the url.
-* `headers` should be a object of `key: value` pairs. `key`s are lower cased and
-  matched against the whitelist. Headers with a `null` value are ignored
-* `payload` is optional, but must be a Buffer. The default value is the empty
-  Buffer.
 * `key` must be a cryptographically pseudorandom key of length
   `authenticatedRequest.KEYBYTES` passed as a Buffer. It is recommended to use
   `sodium-native` Secure Buffers if possible.
+* A request object containing:
+  + `method` must be a string, and should be a HTTP method
+  + `url` must be a string. Consider whether you deem protocol and hostname part
+    of the url.
+  + `headers` should be a object of `key: value` pairs. `key`s are lower cased
+    and matched against the whitelist. Headers with a `null` value are ignored
+  + `payload` is optional, but must be a Buffer. The default value is the empty
+    Buffer. Can be the HTTP body, a checksum/digest or something else
 
 Returns boolean on whether the MAC was valid or not.
 

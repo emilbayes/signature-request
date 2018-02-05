@@ -1,17 +1,34 @@
 var test = require('tape')
 var authReq = require('.')
 
-test('', function (assert) {
+test('Simple test', function (assert) {
   var ar = authReq(['accept-encoding', 'content-length', 'content-type'])
 
-  {
-    'X-Forwarded-For': 'http://localhost.com',
-    'Accept-Encoding': 'Jesus',
-    'Content-Length': 'Master',
-    'Cookie': 'hello World'
+  var key = authReq.keygen()
+
+  var req1 = {
+    method: 'GET',
+    url: 'www.example.com',
+    headers: {
+      'Host': 'example.com',
+      'X-Forwarded-For': 'localhost',
+      'Content-Length': 20
+    }
   }
 
-  assert.ok()
+  var req2 = {
+    method: 'GET',
+    url: 'www.example.com',
+    headers: {
+      'Host': 'fake.com',
+      'X-Forwarded-For': 'localhost',
+      'Content-Length': 20
+    }
+  }
+
+  var mac = ar.authenticate(key, req1)
+
+  assert.ok(ar.verify(mac, key, req2))
   assert.end()
 })
 
