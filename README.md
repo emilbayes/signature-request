@@ -18,8 +18,7 @@ var authenticatedRequest = require('authenticated-request')
 var sodium = require('sodium-native')
 
 // Create secure buffer key in-memory (you probably get this from a file somehow)
-var key = sodium.sodium_malloc(authenticatedRequest.KEYBYTES)
-sodium.randombytes_random(key)
+var key = authenticatedRequest.keygen()
 
 var authReq = authenticatedRequest([
   'Host', 'Date', 'Content-Length', 'Content-Type'
@@ -54,8 +53,7 @@ var authenticatedRequest = require('authenticated-request')
 var sodium = require('sodium-native')
 
 // Create secure buffer key in-memory (you probably get this from a file somehow)
-var key = sodium.sodium_malloc(authenticatedRequest.KEYBYTES)
-sodium.randombytes_random(key)
+var key = authenticatedRequest.keygen()
 
 var authReq = authenticatedRequest([
   'Host', 'Date', 'Content-Length', 'Content-Type'
@@ -107,6 +105,14 @@ Do they represent the same resource or are they different?
 
 * `authenticatedRequest.KEYBYTES` - Length in bytes of a valid key
 * `authenticatedRequest.BYTES` - Length in bytes of a valid MAC
+
+### `var key = authenticatedRequest.keygen([keyBuf])`
+
+Generate a random key into a optional `keyBuf`, or default to allocating a
+`sodium-native` Secure Buffer. `keyBuf` must be at least
+`authenticatedRequest.KEYBYTES` long.
+
+Returns `keyBuf`
 
 ### `var policy = authenticatedRequest(headerWhitelist)`
 

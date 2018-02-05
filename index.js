@@ -15,6 +15,17 @@ function AuthenticatedRequest (headerWhitelist) {
   this._headerWhitelist = headerWhitelist.map(s => s.toLowerCase()).sort()
 }
 
+// Exposed both as a static method and an instance method
+AuthenticatedRequest.keygen = AuthenticatedRequest.prototype.keygen = function (key) {
+  if (key == null) key = sodium.sodium_malloc(AuthenticatedRequest.KEYBYTES)
+  assert(Buffer.isBuffer(key), 'key must be Buffer (recommended sodium-native Secure Buffer)')
+  assert(key.length >= AuthenticatedRequest.KEYBYTES, 'key must be AuthenticatedRequest.KEYBYTES long')
+
+  sodium.randombytes_random(key)
+
+  return key
+}
+
 AuthenticatedRequest.prototype.authenticate = function (key, {method, url, headers, payload}) {
   assert(Buffer.isBuffer(key), 'key must be Buffer (recommended sodium-native Secure Buffer)')
   assert(key.length >= AuthenticatedRequest.KEYBYTES, 'key must be AuthenticatedRequest.KEYBYTES long')
